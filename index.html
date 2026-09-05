@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Incident Management System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- เปลี่ยนมาใช้ Lucide เวอร์ชันที่ระบุเลขชัดเจนเพื่อความเสถียร -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      .printable-area, .printable-area * { visibility: visible; }
+      .printable-area { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; background: white; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 font-sans antialiased min-h-screen">
+
+  <header class="bg-[#0f172a] text-white px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-md no-print">
+    <div class="flex items-center space-x-3">
+      <div class="bg-red-500 p-2 rounded-lg text-white font-bold">🚨</div>
+      <h1 class="text-xl font-bold tracking-wide">Smart Incident Management System</h1>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <nav class="bg-[#1e293b] p-1.5 rounded-xl flex flex-wrap gap-1">
+        <button onclick="switchTab('citizen')" id="btn-citizen" class="tab-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white shadow">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
+          <span>1. แจ้งเหตุ</span>
+        </button>
+
+        <button onclick="switchTab('track')" id="btn-track" class="tab-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span>2. ติดตามสถานะ</span>
+        </button>
+
+        <button onclick="switchTab('officer')" id="btn-officer" class="tab-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white relative">
+          <i data-lucide="wrench" class="w-4 h-4"></i>
+          <span>3. เจ้าหน้าที่ 🔒</span>
+          <span id="badge-officer-count" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+        </button>
+
+        <button onclick="switchTab('admin')" id="btn-admin" class="tab-btn flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>4. แอดมิน 🔒</span>
+        </button>
+      </nav>
+
+      <div id="auth-buttons-container">
+        <button onclick="openAuthModal('login')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow transition flex items-center gap-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i> เข้าสู่ระบบ / สมัครสมาชิก
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto my-8 px-4">
+
+    <section id="tab-citizen" class="tab-content bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
+      <div class="mb-6">
+        <span class="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-semibold">Citizen Portal</span>
+        <h2 class="text-2xl font-bold text-slate-800 mt-2">📣 แบบฟอร์มแจ้งเรื่องร้องเรียน / แจ้งเหตุ</h2>
+        <p class="text-slate-500 text-sm mt-1">กรอกข้อมูลรายละเอียดเพื่อให้เจ้าหน้าที่ส่งความช่วยเหลือไปยังพื้นที่ของคุณ</p>
+      </div>
+
+      <form id="incident-form" class="space-y-6" onsubmit="handleFormSubmit(event)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">ประเภทปัญหา: <span class="text-red-500">*</span></label>
+            <select id="type" required class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700">
+              <option value="">เลือกประเภทปัญหา</option>
+              <option value="ไฟฟ้าส่องสว่างดับ / เสาไฟชำรุด">ไฟฟ้าส่องสว่าง / เสาไฟชำรุด</option>
+              <option value="ท่อประปาแตก / น้ำรั่วซึม">ท่อประปาแตก / น้ำรั่วซึม</option>
+              <option value="ถนนชำรุดเป็นหลุมบ่อ">ถนนชำรุดเป็นหลุมบ่อ</option>
+              <option value="ปัญหาอื่นๆ (ขยะ/สิ่งแวดล้อม)">ปัญหาอื่นๆ (ขยะ/สิ่งแวดล้อม)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">ระดับความเร่งด่วน:</label>
+            <select id="urgency" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700">
+              <option value="ปกติ">ปกติ</option>
+              <option value="ปานกลาง">ปานกลาง</option>
+              <option value="สูง (อันตราย)">สูง (อันตราย)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">สถานที่เกิดเหตุ / จุดสังเกต: <span class="text-red-500">*</span></label>
+          <input type="text" id="location" required placeholder="เช่น หน้าปากซอยสุขุมวิท 4" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700">
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียดเพิ่มเติม:</label>
+          <textarea id="details" rows="4" placeholder="อธิบายลักษณะความเสียหาย..." class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 resize-none"></textarea>
+        </div>
+
+        <button type="submit" id="submitBtn" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-orange-500/30 flex items-center justify-center space-x-2 transition">
+          <i data-lucide="rocket" class="w-5 h-5"></i>
+          <span>ส่งเรื่องแจ้งเหตุเข้าสู่ระบบ</span>
+        </button>
+      </form>
+    </section>
+
+    <section id="tab-track" class="tab-content hidden bg-white rounded-2xl p-8 shadow-sm border border-slate-200 space-y-6">
+      <div class="mb-6">
+        <span class="bg-emerald-100 text-emerald-700 text-xs px-3 py-1 rounded-full font-semibold">Public Tracking</span>
+        <h2 class="text-2xl font-bold text-slate-800 mt-2">🔍 ตรวจสอบสถานะการแจ้งเหตุ</h2>
+        <p class="text-slate-500 text-sm mt-1">ใส่ ID เคส (เช่น 1 หรือตัวเลข ID) เพื่อติดตามความคืบหน้า</p>
+      </div>
+
+      <div class="flex gap-3 max-w-md">
+        <input type="text" id="track-search-input" placeholder="พิมพ์รหัสเคส เช่น 1 หรือ #INC-1" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button onclick="searchIncidentStatus()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition flex items-center gap-2 shrink-0">
+          <i data-lucide="search" class="w-4 h-4"></i> ค้นหา
+        </button>
+      </div>
+
+      <div id="track-result" class="hidden border border-slate-200 rounded-2xl p-6 bg-slate-50/50 space-y-4">
+      </div>
+    </section>
+
+    <section id="tab-officer" class="tab-content hidden space-y-6 printable-area">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span class="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-semibold">Officer Portal</span>
+          <h2 class="text-xl font-bold text-slate-800 mt-2">📋 รายการจัดการเคสและรายงานการแจ้งปัญหา</h2>
+        </div>
+        <div class="flex gap-2 w-full md:w-auto no-print">
+          <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow">
+            <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์รายงานตารางเคส
+          </button>
+          <button onclick="loadIncidents()" class="bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition">🔄 รีเฟรช</button>
+          <div class="relative w-full md:w-64">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3.5"></i>
+            <input type="text" id="search-input" onkeyup="renderOfficerTable()" placeholder="ค้นหาสถานที่ หรือ ID..." class="w-full bg-slate-50 border border-slate-200 pl-9 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <table class="w-full text-left border-collapse border border-slate-200">
+          <thead>
+            <tr class="border-b border-slate-200 text-slate-700 text-sm bg-slate-100">
+              <th class="p-4 font-bold border-r border-slate-200">ID เคส</th>
+              <th class="p-4 font-bold border-r border-slate-200">ประเภทปัญหา</th>
+              <th class="p-4 font-bold border-r border-slate-200">สถานที่เกิดเหตุ</th>
+              <th class="p-4 font-bold border-r border-slate-200">ความเร่งด่วน</th>
+              <th class="p-4 font-bold border-r border-slate-200">สถานะปัจจุบัน</th>
+              <th class="p-4 font-bold text-center no-print">จัดการสถานะ</th>
+            </tr>
+          </thead>
+          <tbody id="officer-table-body" class="divide-y divide-slate-200 text-sm text-slate-700">
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-admin" class="tab-content hidden space-y-6 printable-area">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span class="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-semibold">Analytics & Reports</span>
+          <h2 class="text-2xl font-bold text-slate-800 mt-2">📊 ภาพรวมสถิติและรายงานสรุปประจำปี</h2>
+          <p class="text-slate-500 text-xs mt-1">ข้อมูลมอนิเตอร์ สถิติรายปี และตารางรายงานการแจ้งปัญหาทั้งหมด</p>
+        </div>
+        <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow no-print flex items-center gap-2">
+          <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์รายงานทั้งหมด (Excel Style)
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
+        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-blue-500 border border-slate-200 shadow-sm">
+          <p class="text-slate-500 text-xs font-semibold">แจ้งเหตุทั้งหมด</p>
+          <h3 id="stat-total" class="text-2xl font-extrabold text-slate-800 my-1">0 เคส</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-amber-500 border border-slate-200 shadow-sm">
+          <p class="text-slate-500 text-xs font-semibold">รอดำเนินการ</p>
+          <h3 id="stat-pending" class="text-2xl font-extrabold text-slate-800 my-1">0 เคส</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-indigo-500 border border-slate-200 shadow-sm">
+          <p class="text-slate-500 text-xs font-semibold">กำลังดำเนินการ</p>
+          <h3 id="stat-progress" class="text-2xl font-extrabold text-slate-800 my-1">0 เคส</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-emerald-500 border border-slate-200 shadow-sm">
+          <p class="text-slate-500 text-xs font-semibold">แก้ไขสำเร็จ</p>
+          <h3 id="stat-completed" class="text-2xl font-extrabold text-slate-800 my-1">0 เคส</h3>
+          <p id="stat-completed-pct" class="text-emerald-600 text-xs font-medium">✅ คิดเป็น 0%</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="calendar" class="w-5 h-5 text-indigo-600"></i> สถิติการเกิดปัญหาแยกตามปี (Yearly Incident Report)
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse border border-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-3 border border-slate-200 font-bold">ปี พ.ศ. / ค.ศ.</th>
+                <th class="p-3 border border-slate-200 font-bold">ไฟฟ้าส่องสว่าง</th>
+                <th class="p-3 border border-slate-200 font-bold">ท่อประปาแตก</th>
+                <th class="p-3 border border-slate-200 font-bold">ถนนชำรุด</th>
+                <th class="p-3 border border-slate-200 font-bold">ปัญหาอื่นๆ</th>
+                <th class="p-3 border border-slate-200 font-bold text-center">รวมทั้งหมด (เคส)</th>
+              </tr>
+            </thead>
+            <tbody id="yearly-stats-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="table" class="w-5 h-5 text-indigo-600"></i> รายการรายงานการแจ้งปัญหาทั้งหมดในระบบ
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse border border-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700">
+                <th class="p-3 border border-slate-200 font-bold">ID เคส</th>
+                <th class="p-3 border border-slate-200 font-bold">ประเภทปัญหา</th>
+                <th class="p-3 border border-slate-200 font-bold">สถานที่เกิดเหตุ</th>
+                <th class="p-3 border border-slate-200 font-bold">ความเร่งด่วน</th>
+                <th class="p-3 border border-slate-200 font-bold">สถานะ</th>
+                <th class="p-3 border border-slate-200 font-bold">วันที่แจ้ง</th>
+              </tr>
+            </thead>
+            <tbody id="admin-table-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="auth-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 relative">
+      <button onclick="closeAuthModal()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div id="form-login-container">
+        <h3 class="text-2xl font-bold text-slate-800 mb-1">🔑 เข้าสู่ระบบ</h3>
+        <p class="text-slate-500 text-xs mb-6">ยินดีต้อนรับกลับมา! กรอกข้อมูลด้านล่างเพื่อเข้าสู่ระบบ</p>
+
+        <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อผู้ใช้งาน หรือ อีเมล</label>
+            <input type="text" id="login-username" required placeholder="เช่น officer หรือ admin" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่าน</label>
+            <input type="password" id="login-password" required placeholder="••••••••" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">เข้าสู่ระบบ</button>
+        </form>
+
+        <div class="text-center mt-4 text-xs text-slate-500">
+          ยังไม่มีบัญชีใช่ไหม? <button onclick="toggleAuthForm('register')" class="text-blue-600 font-bold hover:underline">สมัครสมาชิกที่นี่</button>
+        </div>
+      </div>
+
+      <div id="form-register-container" class="hidden">
+        <h3 class="text-2xl font-bold text-slate-800 mb-1">📝 สมัครสมาชิกใหม่</h3>
+        <p class="text-slate-500 text-xs mb-6">สร้างบัญชีผู้ใช้เพื่อใช้งานระบบเพิ่มเติม</p>
+
+        <form onsubmit="handleRegisterSubmit(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล</label>
+            <input type="text" id="reg-fullname" required placeholder="สมชาย ใจดี" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
+            <input type="email" id="reg-email" required placeholder="somchai@example.com" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">สิทธิ์การใช้งาน (Role)</label>
+            <select id="reg-role" class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="citizen">ประชาชนทั่วไป (Citizen)</option>
+              <option value="officer">เจ้าหน้าที่ (Officer)</option>
+              <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่าน</label>
+            <input type="password" id="reg-password" required placeholder="ตั้งรหัสผ่าน..." class="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">ยืนยันสมัครสมาชิก</button>
+        </form>
+
+        <div class="text-center mt-4 text-xs text-slate-500">
+          มีบัญชีอยู่แล้วใช่ไหม? <button onclick="toggleAuthForm('login')" class="text-blue-600 font-bold hover:underline">เข้าสู่ระบบที่นี่</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="meme-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl text-center border border-slate-100 transform transition-all scale-100 space-y-4">
+      <div class="overflow-hidden rounded-2xl border border-slate-200 flex items-center justify-center bg-slate-50 p-2">
+        <img src="images/th-11134207-81ztc-mru0n85hup6u08.jpg" alt="บันทึกข้อมูลแล้ว" class="w-full h-64 object-cover rounded-xl">
+      </div>
+      <h3 class="text-xl font-bold text-slate-800 mb-1">บันทึกข้อมูลแล้ว!</h3>
+      <p class="text-slate-600 text-sm">รหัสเคสของคุณคือ: <span id="created-case-id" class="font-bold text-blue-600 text-lg">#INC-00</span></p>
+      <p class="text-slate-400 text-xs mb-5">สามารถใช้รหัสเคสนี้ติดตามสถานะได้ครับ</p>
+      <button onclick="closeMemeModal()" class="w-full bg-[#10172a] hover:bg-slate-800 text-white font-bold py-3 rounded-xl shadow-md transition">
+        รับทราบ (ปิดหน้าต่าง)
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://mvosqdmpmqtliacqqhfi.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_fE0NFVXs10Aa-U0NQ9iUdQ_HU_XESYL';
+    const { createClient } = supabase;
+    const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let incidents = [];
+    let currentUser = null;
+
+    let usersDatabase = [
+      { fullname: 'เจ้าหน้าที่ สมชาย', email: 'officer', password: 'officer123', role: 'officer' },
+      { fullname: 'แอดมินระบบ', email: 'admin', password: 'admin123', role: 'admin' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+      loadIncidents();
+    });
+
+    async function loadIncidents() {
+      const { data, error } = await _supabase.from('incidents').select('*').order('id', { ascending: false });
+      if (!error && data) {
+        incidents = data;
+        renderOfficerTable();
+        updateAdminDashboard();
+        renderYearlyStatsTable();
+        renderAdminTable();
+      }
+    }
+
+    function openAuthModal(mode) {
+      document.getElementById('auth-modal').classList.remove('hidden');
+      toggleAuthForm(mode);
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+    }
+
+    function toggleAuthForm(mode) {
+      if (mode === 'register') {
+        document.getElementById('form-login-container').classList.add('hidden');
+        document.getElementById('form-register-container').classList.remove('hidden');
+      } else {
+        document.getElementById('form-register-container').classList.add('hidden');
+        document.getElementById('form-login-container').classList.remove('hidden');
+      }
+    }
+
+    function handleLoginSubmit(e) {
+      e.preventDefault();
+      const usernameInput = document.getElementById('login-username').value.trim();
+      const passwordInput = document.getElementById('login-password').value.trim();
+
+      const foundUser = usersDatabase.find(u => (u.email === usernameInput || u.fullname === usernameInput) && u.password === passwordInput);
+
+      if (foundUser) {
+        currentUser = foundUser;
+        updateUserUI();
+        closeAuthModal();
+        alert(`🎉 เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับ ${currentUser.fullname}`);
+      } else {
+        alert('❌ ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง!');
+      }
+    }
+
+    function handleRegisterSubmit(e) {
+      e.preventDefault();
+      const fullname = document.getElementById('reg-fullname').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const role = document.getElementById('reg-role').value;
+      const password = document.getElementById('reg-password').value.trim();
+
+      const exists = usersDatabase.some(u => u.email === email);
+      if (exists) {
+        alert('❌ อีเมลนี้เคยลงทะเบียนแล้ว!');
+        return;
+      }
+
+      const newUser = { fullname, email, password, role };
+      usersDatabase.push(newUser);
+      currentUser = newUser;
+      
+      updateUserUI();
+      closeAuthModal();
+      alert('✅ สมัครสมาชิกเรียบร้อยแล้วและเข้าสู่ระบบให้อัตโนมัติ!');
+    }
+
+    function logout() {
+      currentUser = null;
+      updateUserUI();
+      switchTab('citizen');
+      alert('ออกจากระบบเรียบร้อยแล้ว');
+    }
+
+    function updateUserUI() {
+      const container = document.getElementById('auth-buttons-container');
+      if (currentUser) {
+        let roleBadge = currentUser.role === 'admin' ? '🛡️ แอดมิน' : (currentUser.role === 'officer' ? '🛠️ เจ้าหน้าที่' : '👤 ประชาชน');
+        container.innerHTML = `
+          <div class="flex items-center gap-3 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+            <span class="text-xs text-slate-300"><b>${currentUser.fullname}</b> (${roleBadge})</span>
+            <button onclick="logout()" class="bg-red-500/80 hover:bg-red-600 text-white text-xs px-2.5 py-1 rounded-lg transition">ออกจากระบบ</button>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <button onclick="openAuthModal('login')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow transition flex items-center gap-2">
+            <i data-lucide="log-in" class="w-4 h-4"></i> เข้าสู่ระบบ / สมัครสมาชิก
+          </button>
+        `;
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    function switchTab(tabName) {
+      if (tabName === 'officer') {
+        const pass = prompt('🔒 กรุณาใส่รหัสผ่านเจ้าหน้าที่ (officer123):');
+        if (pass !== 'officer123') {
+          alert('❌ รหัสผ่านเจ้าหน้าที่ไม่ถูกต้อง!');
+          return;
+        }
+      } else if (tabName === 'admin') {
+        const pass = prompt('🔒 กรุณาใส่รหัสผ่านแอดมิน (admin123):');
+        if (pass !== 'admin123') {
+          alert('❌ รหัสผ่านแอดมินไม่ถูกต้อง!');
+          return;
+        }
+      }
+
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white', 'shadow');
+        btn.classList.add('text-slate-300');
+      });
+
+      document.getElementById('tab-' + tabName).classList.remove('hidden');
+      const activeBtn = document.getElementById('btn-' + tabName);
+      activeBtn.classList.add('bg-blue-600', 'text-white', 'shadow');
+      activeBtn.classList.remove('text-slate-300');
+
+      if(tabName === 'officer') loadIncidents();
+      if(tabName === 'admin') loadIncidents();
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      const category = document.getElementById('type').value;
+      const urgency = document.getElementById('urgency').value;
+      const location = document.getElementById('location').value;
+      const description = document.getElementById('details').value;
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'กำลังบันทึก...';
+
+      const { data, error } = await _supabase.from('incidents').insert([{
+        category, urgency, location, description, status: 'รอดำเนินการ'
+      }]).select();
+
+      if (error) {
+        alert('❌ บันทึกไม่สำเร็จ: ' + error.message);
+      } else {
+        const newId = data && data.length > 0 ? data[0].id : '???';
+        document.getElementById('created-case-id').innerText = `#INC-${newId}`;
+        document.getElementById('meme-modal').classList.remove('hidden');
+        document.getElementById('incident-form').reset();
+        loadIncidents();
+      }
+      btn.disabled = false;
+      btn.innerHTML = `<i data-lucide="rocket" class="w-5 h-5"></i><span>ส่งเรื่องแจ้งเหตุเข้าสู่ระบบ</span>`;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    async function searchIncidentStatus() {
+      const query = document.getElementById('track-search-input').value.trim();
+      const resultDiv = document.getElementById('track-result');
+
+      if (!query) {
+        alert('กรุณากรอกรหัสเคสที่ต้องการค้นหา');
+        return;
+      }
+
+      const cleanId = query.replace('#INC-', '').trim();
+      resultDiv.classList.remove('hidden');
+      resultDiv.innerHTML = `<p class="text-center text-slate-400 py-4">กำลังค้นหา...</p>`;
+
+      const { data, error } = await _supabase.from('incidents').select('*').eq('id', cleanId).single();
+
+      if (error || !data) {
+        resultDiv.innerHTML = `<div class="text-center py-4 text-red-500">❌ไม่พบข้อมูลเคสหมายเลข <b>#INC-${cleanId}</b> ในระบบ</div>`;
+        return;
+      }
+
+      let statusBadge = '';
+      if (data.status === 'รอดำเนินการ') {
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">⏳ รอดำเนินการ (รอเจ้าหน้าที่รับเรื่อง)</span>`;
+      } else if (data.status === 'กำลังดำเนินการ') {
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">🛠️ กำลังดำเนินการ (เจ้าหน้าที่ลงพื้นที่)</span>`;
+      } else {
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">✅ แก้ไขสำเร็จเรียบร้อย</span>`;
+      }
+
+      resultDiv.innerHTML = `
+        <div class="flex justify-between items-start border-b border-slate-200 pb-3">
+          <div>
+            <h3 class="font-bold text-indigo-600 text-lg">#INC-${data.id}</h3>
+            <p class="text-xs text-slate-500">${data.category}</p>
+          </div>
+          <div>${statusBadge}</div>
+        </div>
+        <div class="text-sm text-slate-700 space-y-1">
+          <p><b>สถานที่:</b> ${data.location}</p>
+          <p><b>รายละเอียด:</b> ${data.description || '-'}</p>
+        </div>
+      `;
+    }
+
+    function closeMemeModal() {
+      document.getElementById('meme-modal').classList.add('hidden');
+    }
+
+    async function changeStatus(id, newStatus) {
+      const { error } = await _supabase.from('incidents').update({ status: newStatus }).eq('id', id);
+      if (!error) {
+        loadIncidents();
+      }
+    }
+
+    function renderOfficerTable() {
+      const tbody = document.getElementById('officer-table-body');
+      const searchQuery = document.getElementById('search-input')?.value.toLowerCase() || '';
+      
+      const filtered = incidents.filter(i => 
+        String(i.id).toLowerCase().includes(searchQuery) || 
+        i.location.toLowerCase().includes(searchQuery) ||
+        i.category.toLowerCase().includes(searchQuery)
+      );
+
+      const pendingCount = incidents.filter(i => i.status === 'รอดำเนินการ').length;
+      const badge = document.getElementById('badge-officer-count');
+      if (pendingCount > 0) {
+        badge.innerText = pendingCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-medium">ยังไม่มีรายการแจ้งเหตุในระบบ</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        let statusBadge = '';
+        let actionBtn = '';
+
+        if (item.status === 'รอดำเนินการ') {
+          statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700"><span class="w-2 h-2 rounded-full bg-amber-500"></span>รอดำเนินการ</span>`;
+          actionBtn = `<button onclick="changeStatus(${item.id}, 'กำลังดำเนินการ')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">รับเคส</button>`;
+        } else if (item.status === 'กำลังดำเนินการ') {
+          statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700"><span class="w-2 h-2 rounded-full bg-blue-500"></span>กำลังดำเนินการ</span>`;
+          actionBtn = `<button onclick="changeStatus(${item.id}, 'แก้ไขสำเร็จ')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">ปิดเคส</button>`;
+        } else {
+          statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>แก้ไขสำเร็จ</span>`;
+          actionBtn = `<span class="text-xs text-slate-400 font-medium">เรียบร้อย</span>`;
+        }
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="p-3 border-r border-slate-200 font-bold text-indigo-600">#INC-${item.id}</td>
+            <td class="p-3 border-r border-slate-200 font-medium">${item.category}</td>
+            <td class="p-3 border-r border-slate-200 text-slate-600">${item.location}</td>
+            <td class="p-3 border-r border-slate-200"><span class="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">${item.urgency}</span></td>
+            <td class="p-3 border-r border-slate-200">${statusBadge}</td>
+            <td class="p-3 text-center no-print">${actionBtn}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function updateAdminDashboard() {
+      const total = incidents.length;
+      const pending = incidents.filter(i => i.status === 'รอดำเนินการ').length;
+      const inProgress = incidents.filter(i => i.status === 'กำลังดำเนินการ').length;
+      const completed = incidents.filter(i => i.status === 'แก้ไขสำเร็จ').length;
+
+      document.getElementById('stat-total').innerText = `${total} เคส`;
+      document.getElementById('stat-pending').innerText = `${pending} เคส`;
+      document.getElementById('stat-progress').innerText = `${inProgress} เคส`;
+      document.getElementById('stat-completed').innerText = `${completed} เคส`;
+
+      const completedPct = total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
+      document.getElementById('stat-completed-pct').innerText = `✅ คิดเป็น ${completedPct}%`;
+    }
+
+    function renderYearlyStatsTable() {
+      const tbody = document.getElementById('yearly-stats-tbody');
+      const yearlyData = {};
+      
+      incidents.forEach(item => {
+        const year = item.created_at ? new Date(item.created_at).getFullYear() : new Date().getFullYear();
+        if (!yearlyData[year]) {
+          yearlyData[year] = { light: 0, water: 0, road: 0, other: 0, total: 0 };
+        }
+        
+        yearlyData[year].total++;
+        if (item.category.includes('ไฟฟ้า')) yearlyData[year].light++;
+        else if (item.category.includes('ประปา')) yearlyData[year].water++;
+        else if (item.category.includes('ถนน')) yearlyData[year].road++;
+        else yearlyData[year].other++;
+      });
+
+      const years = Object.keys(yearlyData).sort((a, b) => b - a);
+
+      if (years.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">ยังไม่มีข้อมูลสถิติ</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = years.map(year => {
+        const d = yearlyData[year];
+        const thaiYear = parseInt(year) + 543;
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="p-3 border border-slate-200 font-bold text-indigo-600">พ.ศ. ${thaiYear} (${year})</td>
+            <td class="p-3 border border-slate-200 text-center">${d.light} เคส</td>
+            <td class="p-3 border border-slate-200 text-center">${d.water} เคส</td>
+            <td class="p-3 border border-slate-200 text-center">${d.road} เคส</td>
+            <td class="p-3 border border-slate-200 text-center">${d.other} เคส</td>
+            <td class="p-3 border border-slate-200 text-center font-bold bg-slate-50">${d.total} เคส</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderAdminTable() {
+      const tbody = document.getElementById('admin-table-body');
+      if (incidents.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">ยังไม่มีรายการแจ้งเหตุในระบบ</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = incidents.map(item => `
+        <tr class="hover:bg-slate-50">
+          <td class="p-3 border border-slate-200 font-bold text-indigo-600">#INC-${item.id}</td>
+          <td class="p-3 border border-slate-200">${item.category}</td>
+          <td class="p-3 border border-slate-200">${item.location}</td>
+          <td class="p-3 border border-slate-200">${item.urgency}</td>
+          <td class="p-3 border border-slate-200 font-semibold">${item.status}</td>
+          <td class="p-3 border border-slate-200 text-slate-500">${new Date(item.created_at).toLocaleString('th-TH')}</td>
+        </tr>
+      `).join('');
+    }
+  </script>
+</body>
+</html>
